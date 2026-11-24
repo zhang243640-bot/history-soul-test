@@ -30,6 +30,10 @@ h1 span{color:var(--jade);display:block}
 .intro-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin:28px 0}
 .info{border-top:1px solid var(--line);padding:14px 8px 0;text-align:center}.info b{display:block;font-size:22px;color:var(--jade);margin-bottom:5px}.info small{color:var(--muted);font:12px system-ui}
 .primary,.secondary{border:0;padding:15px 28px;letter-spacing:.12em;transition:.25s}.primary{background:var(--jade);color:#fffdf7;box-shadow:0 8px 20px rgba(49,92,75,.2)}.primary:hover{background:#244737;transform:translateY(-2px)}.secondary{background:transparent;border:1px solid var(--line);color:var(--jade)}.center{text-align:center}.note{font:12px/1.8 system-ui,sans-serif;color:var(--muted);margin-top:16px}
+.share-tools{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+.share-tools button{font-size:13px;padding:12px 18px}
+.invite-banner{margin:16px auto 0;padding:12px 16px;border:1px dashed #cdbd9d;color:#6c624e;font:12px/1.8 system-ui,sans-serif;max-width:560px}
+.poster-status{min-height:20px;text-align:center;color:var(--jade);font:12px system-ui;margin-top:10px}
 .hidden{display:none!important}.quiz-head{display:flex;justify-content:space-between;gap:16px;align-items:center;margin-bottom:18px;font:12px system-ui;color:var(--muted)}
 .progress{height:5px;background:#e9e2d4;overflow:hidden;margin-bottom:30px}.progress-fill{height:100%;width:0;background:linear-gradient(90deg,var(--jade),var(--gold));transition:width .35s ease}
 .q-meta{color:var(--gold);font:12px system-ui;letter-spacing:.2em;margin-bottom:12px}.question{font-size:clamp(23px,4vw,34px);line-height:1.55;margin:0 0 28px}
@@ -74,6 +78,8 @@ footer{text-align:center;color:#8b918a;font:11px system-ui;margin-top:28px;lette
     </div>
     <button class="primary" id="startBtn">开启灵魂寻访　→</button>
     <p class="note">趣味人格测试，仅供娱乐与自我观察，不构成专业心理评估。</p>
+    <div class="share-tools"><button class="secondary" id="inviteHomeBtn">邀请朋友一起测</button></div>
+    <div id="inviteBanner" class="invite-banner hidden">朋友邀请你来测一测：你的灵魂与哪位中国历史人物同频？完成测试后，生成专属结果海报分享给好友。</div>
   </section>
   <section id="quizPanel" class="panel hidden">
     <div class="quiz-head"><span id="stepText">第 1 / 40 题</span><span id="percentText">进度 3%</span></div>
@@ -187,6 +193,39 @@ function score(){
  const match=Math.max(82,Math.min(99,Math.round(90+(max-second)/Math.max(1,max)*18)));
  return {person:ranked[0].p,match,totals,runner:ranked[1].p};
 }
+async function copyText(text){
+ if(navigator.clipboard&&window.isSecureContext)return navigator.clipboard.writeText(text);
+ const area=document.createElement("textarea");area.value=text;area.style.position="fixed";area.style.opacity="0";document.body.appendChild(area);area.select();
+ const ok=document.execCommand("copy");area.remove();if(!ok)throw new Error("copy failed");
+}
+function drawWrapped(ctx,text,x,y,maxWidth,lineHeight,maxLines=4){
+ const chars=[...text];let line="",count=0;
+ for(let i=0;i<chars.length;i++){const test=line+chars[i];if(ctx.measureText(test).width>maxWidth&&line){ctx.fillText(line,x,y);line=chars[i];y+=lineHeight;count++;if(count>=maxLines-1)break;}else line=test;}
+ if(line){if(count>=maxLines-1&&ctx.measureText(line).width>maxWidth){while(line.length>1&&ctx.measureText(line+"…").width>maxWidth)line=line.slice(0,-1);line+="…";}ctx.fillText(line,x,y);}
+}
+function makePoster(person,match){
+ const canvas=document.createElement("canvas");canvas.width=1080;canvas.height=1350;const ctx=canvas.getContext("2d");
+ const g=ctx.createLinearGradient(0,0,1080,1350);g.addColorStop(0,"#203b31");g.addColorStop(.58,"#456b57");g.addColorStop(1,"#17251f");ctx.fillStyle=g;ctx.fillRect(0,0,1080,1350);
+ ctx.strokeStyle="rgba(233,217,174,.65)";ctx.lineWidth=3;ctx.strokeRect(42,42,996,1266);ctx.strokeRect(62,62,956,1226);
+ ctx.fillStyle="#e9d9ae";ctx.beginPath();ctx.arc(825,270,115,0,Math.PI*2);ctx.fill();
+ ctx.fillStyle="rgba(12,31,24,.42)";ctx.beginPath();ctx.moveTo(0,1000);ctx.lineTo(280,650);ctx.lineTo(520,1000);ctx.lineTo(760,690);ctx.lineTo(1080,1030);ctx.lineTo(1080,1350);ctx.lineTo(0,1350);ctx.fill();
+ ctx.textAlign="center";ctx.fillStyle="#e9d9ae";ctx.font="28px sans-serif";ctx.fillText("东方人格图鉴 · 一念一江湖",540,150);
+ ctx.fillStyle="#fffdf7";ctx.font="bold 48px sans-serif";ctx.fillText("我的历史人物灵魂画像",540,235);
+ ctx.fillStyle="#e9d9ae";ctx.font="30px sans-serif";ctx.fillText(person.type,540,505);
+ ctx.fillStyle="#fffdf7";ctx.font="bold 112px serif";ctx.fillText(person.id,540,660);
+ ctx.fillStyle="#e9d9ae";ctx.font="34px sans-serif";ctx.fillText("灵魂气质契合度  "+match+"%",540,735);
+ ctx.strokeStyle="rgba(233,217,174,.55)";ctx.beginPath();ctx.moveTo(180,795);ctx.lineTo(900,795);ctx.stroke();
+ ctx.fillStyle="#fffdf7";ctx.font="36px serif";drawWrapped(ctx,person.quote,540,875,760,58,3);
+ ctx.fillStyle="#e9d9ae";ctx.font="25px sans-serif";ctx.fillText(person.tags.join("  ·  "),540,1080);
+ ctx.fillStyle="#fffdf7";ctx.font="26px sans-serif";ctx.fillText("你也来测测自己的历史灵魂人物",540,1195);
+ ctx.fillStyle="#e9d9ae";ctx.font="22px sans-serif";ctx.fillText(location.origin+location.pathname,540,1245);
+ return canvas;
+}
+function downloadPoster(person,match){
+ try{const canvas=makePoster(person,match);canvas.toBlob(blob=>{if(!blob){$("posterStatus").textContent="海报生成失败，请稍后重试。";return;}
+ const url=URL.createObjectURL(blob);const a=document.createElement("a");a.href=url;a.download="我的历史人物灵魂画像.png";document.body.appendChild(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(url),1500);$("posterStatus").textContent="海报已生成并保存到设备，可发到朋友圈或聊天群。";},"image/png");}
+ catch(e){$("posterStatus").textContent="当前浏览器暂不支持生成海报，请尝试更新浏览器。";}
+}
 function renderResult(){
  const {person,match,totals,runner}=score();
  $("resultContent").innerHTML=`
@@ -204,15 +243,27 @@ function renderResult(){
  <article class="result-card"><h3>✦ 你的隐藏优势</h3><p>${person.advantage}</p></article>
  <article class="result-card"><h3>✦ 趣味彩蛋</h3><p>${person.easter}</p></article>
  </div>
- <div class="share-hint">分享文案灵感：我的灵魂人物是「${person.id}」——${person.quote} 你测出来会是谁？</div>
+ <div class="share-hint">把你的结果做成专属海报，或邀请朋友也来测一测。分享文案：我的灵魂人物是「${person.id}」——${person.quote} 你测出来会是谁？</div>
  <div class="center match-score">本次次席气质：${runner.id} · 每次选择都会影响结果</div>
- <div class="result-actions"><button class="primary" id="restartBtn">再测一次</button><button class="secondary" id="shareBtn">复制结果文案</button></div>
+ <div class="result-actions"><button class="primary" id="posterBtn">生成 / 保存结果海报</button><button class="secondary" id="shareBtn">分享我的结果</button><button class="secondary" id="inviteBtn">复制测试邀请链接</button><button class="secondary" id="restartBtn">再测一次</button></div>
+ <div id="posterStatus" class="poster-status" aria-live="polite"></div>
  <p class="note center">结果为趣味算法生成，不代表历史人物的完整评价，也不构成心理诊断。</p>`;
  $("restartBtn").addEventListener("click",start);
- $("shareBtn").addEventListener("click",async()=>{const text=`我的灵魂历史人物是${person.id}（${person.type}）！\n${person.quote}\n快来测测你的灵魂对应哪位中国历史人物。`;try{await navigator.clipboard.writeText(text);$("shareBtn").textContent="已复制 ✓";}catch(e){$("shareBtn").textContent="请手动截图分享";}});
+ const shareUrl=()=>location.origin+location.pathname+"?from=share&match="+encodeURIComponent(person.id);
+ const shareText=()=>\`我的灵魂历史人物是\${person.id}（\${person.type}），契合度 \${match}%！\n\${person.quote}\n你也来测测自己的历史灵魂人物：\${shareUrl()}\`;
+ $("posterBtn").addEventListener("click",()=>downloadPoster(person,match));
+ $("shareBtn").addEventListener("click",async()=>{
+   const text=shareText();
+   try{if(navigator.share){await navigator.share({title:"我的历史人物灵魂测试结果",text,url:shareUrl()});$("posterStatus").textContent="已打开系统分享面板";}
+   else{await copyText(text);$("posterStatus").textContent="结果文案已复制，可以粘贴分享给朋友。";}}
+   catch(e){if(e.name!=="AbortError")$("posterStatus").textContent="分享未完成，可使用“生成 / 保存结果海报”。";}
+ });
+ $("inviteBtn").addEventListener("click",async()=>{try{await copyText(shareUrl());$("posterStatus").textContent="邀请链接已复制，发给朋友即可参与测试。";}catch(e){$("posterStatus").textContent="复制失败，请手动复制网址："+shareUrl();}});
  show("resultPanel");
 }
 $("startBtn").addEventListener("click",start);
+$("inviteHomeBtn").addEventListener("click",async()=>{const url=location.origin+location.pathname+"?from=share";try{await copyText("来测测你的灵魂对应哪位中国历史人物："+url);$("inviteHomeBtn").textContent="邀请链接已复制 ✓";}catch(e){$("inviteHomeBtn").textContent="复制失败，请手动分享网址";}});
+if(new URLSearchParams(location.search).get("from")==="share")$("inviteBanner").classList.remove("hidden");
 $("prevBtn").addEventListener("click",()=>{if(current>0){current--;renderQuestion();}});
 $("nextBtn").addEventListener("click",()=>{if(answers[current]===null)return;if(current<questions.length-1){current++;renderQuestion();}else renderResult();});
 $("home").classList.remove("hidden");$("startPanel").classList.remove("hidden");
